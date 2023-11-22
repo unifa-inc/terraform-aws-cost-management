@@ -1,0 +1,44 @@
+---
+description: Stop RDS instance
+schemaVersion: "0.3"
+assumeRole: "{{ AutomationAssumeRole }}"
+parameters:
+  ClusterId:
+    type: String
+    description: (Required) RDS Cluster Id to stop
+  AutomationAssumeRole:
+    type: String
+    description: (Optional) The ARN of the role that allows Automation to perform the actions on your behalf.
+    default: ""
+mainSteps:
+  -
+    name: AssertNotStopped
+    action: aws:assertAwsResourceProperty
+    isCritical: false
+    onFailure: step:StopCluster
+    nextStep: CheckStop
+    inputs:
+      Service: rds
+      Api: DescribeDBClusters
+      DBClusterIdentifier: "{{ClusterId}}"
+      PropertySelector: "$.DBClusters[0].Status"
+      DesiredValues: ["stopped", "stopping"]
+  -
+    name: StopCluster
+    action: aws:executeAwsApi
+    inputs:
+      Service: rds
+      Api: StopDBCluster
+      DBClusterIdentifier: "{{ClusterId}}"
+  -
+    name: CheckStop
+    action: aws:waitForAwsResourceProperty
+    onFailure: Abort
+    maxAttempts: 10
+    timeoutSeconds: 600
+    inputs:
+      Service: rds
+      Api: DescribeDBClusters
+      DBClusterIdentifier: "{{ClusterId}}"
+      PropertySelector: "$.DBClusters[0].Status"
+      DesiredValues: ["stopped"]
